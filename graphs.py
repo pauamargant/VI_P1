@@ -13,7 +13,7 @@ import geodatasets
 
 #!pip install h3pandas
 import h3pandas
-import streamlit as st
+# import streamlit as st
 
 import numpy as np
 
@@ -34,7 +34,6 @@ seq = [
 ]
 
 
-@st.cache_data
 def get_accident_data(fname, sample=False):
     if not sample:
         df = pd.read_csv(fname)
@@ -60,7 +59,6 @@ def get_accident_data(fname, sample=False):
     return df
 
 
-@st.cache_data
 def get_chart_1(df, w=300):
     return (
         alt.Chart(df)
