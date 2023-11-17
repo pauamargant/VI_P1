@@ -222,3 +222,91 @@ def create_chart2(df):
 
     layered_chart = alt.layer(bar_chart, text_labels).configure_axisX(grid=True)
     return layered_chart
+
+
+def get_weather_data(
+    df,
+    fnames=[
+        "new york city 2018-06-01 to 2018-08-31.csv",
+        "new york city 2020-06-01 to 2020-08-31",
+    ],
+):
+    df_weather_1 = pd.read_csv("new york city 2018-06-01 to 2018-08-31.csv")
+    df_weather_2 = pd.read_csv("new york city 2020-06-01 to 2020-08-31.csv")
+    df_weather = pd.concat([df_weather_1, df_weather_2], axis=0)
+
+    weather_cond = df_weather[["datetime", "conditions"]].copy()
+    weather_cond["datetime"] = pd.to_datetime(
+        weather_cond["datetime"], format="%Y-%m-%d"
+    )
+
+    # Convert 'date' column in df to the same timezone as 'datetime' column in weather_cond
+    df["date"] = pd.to_datetime(pd.to_datetime(df["CRASH DATE"]).dt.date)
+
+    # Merge weather conditions with accidents using pd.concat
+    data = df.merge(weather_cond, left_on="date", right_on="datetime", how="inner")
+    return data
+
+
+def weather_chart(
+    data,
+):  # calculate the mean of accidents per day and the mean for each conditions
+    per_day = (
+        data[["date", "conditions", "CRASH TIME"]]
+        .groupby(["date"])
+        .count()
+        .reset_index()
+    )
+    mean = per_day["CRASH TIME"].mean()
+
+    # mean per conditions
+    per_day_cond = (
+        data[["date", "conditions", "CRASH TIME"]]
+        .groupby(["date", "conditions"])
+        .count()
+        .reset_index()
+    )
+    mean_cond = (
+        per_day_cond[["conditions", "CRASH TIME"]]
+        .groupby(["conditions"])
+        .mean()
+        .reset_index()
+    )
+    mean_cond.columns = ["conditions", "mean_cond"]
+    # calcualte difference
+
+    mean_cond["diff"] = mean_cond["mean_cond"].apply(lambda x: x - mean)
+    bars = (
+        alt.Chart(mean_cond)
+        .mark_bar(height=3, orient="horizontal")
+        .encode(
+            y=alt.Y("conditions:N").sort("x"),
+            x="diff:Q",
+            color=alt.condition(
+                alt.datum.diff > 0,
+                alt.value(colors["col2"]),  # The positive color
+                alt.value(colors["col1"]),  # The negative color
+            ),
+        )
+        .properties(width=500, height=300)
+    )
+    points = (
+        alt.Chart(mean_cond)
+        .mark_point(orient="horizontal", size=100, opacity=1, fillOpacity=1)
+        .encode(
+            y=alt.Y("conditions:N").sort("x"),
+            x="diff:Q",
+            color=alt.condition(
+                alt.datum.diff > 0,
+                alt.value(colors["col2"]),  # The positive color
+                alt.value(colors["col1"]),  # The negative color
+            ),
+            fill=alt.condition(
+                alt.datum.diff > 0,
+                alt.value(colors["col2"]),  # The positive color
+                alt.value(colors["col1"]),  # The negative color
+            ),
+        )
+        .properties(width=500, height=300)
+    )
+    return bars + points

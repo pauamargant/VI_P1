@@ -4,7 +4,7 @@ from streamlit.components.v1 import html
 
 colors = {"bg": "#eff0f3", "col1": "#4f8c9d", "col2": "#6ceac0"}
 
-
+st.title("hola")
 accident_data = get_accident_data("dataset_v1.csv", sample=True)
 chart_1 = get_chart_1(accident_data)
 
@@ -15,3 +15,8 @@ st.image("resources/map.png")
 chart_2 = create_chart2(q2_preprocessing(accident_data))
 
 st.altair_chart(chart_2)
+
+weather_data = get_weather_data(accident_data)
+chart_5 = weather_chart(weather_data)
+
+st.altair_chart(chart_5)
