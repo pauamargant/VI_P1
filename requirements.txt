@@ -1,1 +1,9 @@
-altair_saver
+altair==5.1.2
+geodatasets==2023.3.0
+geopandas==0.14.0
+geoplot==0.5.1
+h3pandas==0.2.4
+matplotlib
+numpy==1.23.5
+pandas==1.5.3
+streamlit==1.27.0

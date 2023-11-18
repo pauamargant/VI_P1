@@ -1,18 +1,26 @@
 import streamlit as st
 from graphs import *
 from streamlit.components.v1 import html
+import geopandas as gpd
 
 st.set_page_config(layout="wide")
+colors = {"bg": "#eff0f3", "col1": "#4f8c9d", "col2": "#6ceac0"}
 
 
 def render_svg(svg):
-    """Renders the given svg string."""
+    """
+    Renders the given svg string.
+
+    Parameters:
+    svg (str): The SVG string to be rendered.
+
+    Returns:
+    None
+    """
     b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
     html = r'<img src="data:image/svg+xml;base64,%s"/>' % b64
     st.write(html, unsafe_allow_html=True, use_container_width=True)
 
-
-colors = {"bg": "#eff0f3", "col1": "#4f8c9d", "col2": "#6ceac0"}
 
 st.title("Traffic Accident Analysis in New York City")
 
@@ -27,9 +35,9 @@ with open("resources/map.svg", "r") as f:
 weather_data = get_weather_data(accident_data)
 chart_5 = weather_chart(weather_data, h=500)
 
+
 with st.container():
     st.markdown("### Where do accidents happen?")
-
     render_svg(map_svg)
 
 with st.container():
