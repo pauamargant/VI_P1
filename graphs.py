@@ -52,8 +52,17 @@ def get_accident_data(fname, sample=False):
         df = pd.read_csv(fname)
     else:
         df = pd.read_csv(fname).sample(1000)
-    df = df[["CRASH DATE","CRASH TIME","BOROUGH", "LATITUDE", "LONGITUDE","VEHICLE TYPE CODE 1"]]
-    
+    df = df[
+        [
+            "CRASH DATE",
+            "CRASH TIME",
+            "BOROUGH",
+            "LATITUDE",
+            "LONGITUDE",
+            "VEHICLE TYPE CODE 1",
+        ]
+    ]
+
     # Parse the date column as a date
     df["date"] = pd.to_datetime(df["CRASH DATE"], format="%Y-%m-%d")
 
@@ -467,6 +476,7 @@ def q3_preprocessing(df):
     Returns:
         pandas.DataFrame: The preprocessed DataFrame.
     """
+    df = df[["CRASH TIME", "covid", "weekday"]]
     df["CRASH TIME INT"] = (
         pd.to_datetime(df["CRASH TIME"], format="%H:%M").dt.hour * 60
         + pd.to_datetime(df["CRASH TIME"], format="%H:%M").dt.minute
