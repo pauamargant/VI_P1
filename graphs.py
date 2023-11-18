@@ -76,10 +76,9 @@ def get_accident_data(fname, sample=False):
     # Create a column indicating before or after COVID
     df["covid"] = df["date"].dt.year
     df["covid"] = df["covid"].replace([2018, 2020], ["before", "after"])
-    df['VEHICLE TYPE CODE 1'] = df['VEHICLE TYPE CODE 1'].str.title()
+    df["VEHICLE TYPE CODE 1"] = df["VEHICLE TYPE CODE 1"].str.title()
 
     return df
-
 
 
 def get_chart_1(df, w=300, h=500):
@@ -104,20 +103,28 @@ def get_chart_1(df, w=300, h=500):
         .transform_aggregate(accidents="count()", groupby=["weekday", "date", "covid"])
         .encode(
             x=alt.X(
-                "covid:N", title=None,axis=alt.Axis(labelFontSize=16, labelAngle=0), sort=["before", "after"]
+                "covid:N",
+                title=None,
+                axis=alt.Axis(labelFontSize=16, labelAngle=0),
+                sort=["before", "after"],
             ),
             y=alt.Y("average(accidents):Q", axis=alt.Axis(labelFontSize=14)),
             color=alt.Color(
                 "covid:N",
                 legend=None,
-                scale=alt.Scale(range=[colors["col1"], colors["col2"]])         
-                ),
+                scale=alt.Scale(range=[colors["col1"], colors["col2"]]),
+            ),
             column=alt.Column(
-                "weekday:N", header=alt.Header(labelFontSize=16), title=None, 
-                sort=alt.SortField(field="weekday:N", order="ascending")  # Order by weekday in descending order
+                "weekday:N",
+                header=alt.Header(labelFontSize=16),
+                title=None,
+                sort=alt.SortField(
+                    field="weekday:N", order="ascending"
+                ),  # Order by weekday in descending order
             ),
         )
-        .properties(width=w, height=h).configure_axis(titleFontSize=16)
+        .properties(width=w, height=h)
+        .configure_axis(titleFontSize=16)
     )
 
 
@@ -242,9 +249,7 @@ def plot_map(hex_data, mapa, ny_df, hex_buroughs):
         .properties(width=200, height=300)
     )
 
-    return alt.hconcat(hexagons + labels + borders, burough_chart).resolve_scale(
-        color="independent"
-    )
+    return hexagons + labels + borders, burough_chart
 
 
 def q2_preprocessing(df):
@@ -310,7 +315,9 @@ def create_chart2(df, width=500, height=300):
                 sort=df["VEHICLE TYPE CODE 1"].tolist(),
             ),
             x=alt.X(
-                "percentage:Q", title="Percentage of accidents", scale=alt.Scale(domain=(0, 50))
+                "percentage:Q",
+                title="Percentage of accidents",
+                scale=alt.Scale(domain=(0, 50)),
             ),
             color=alt.Color(
                 "VEHICLE TYPE CODE 1:N",
@@ -344,9 +351,7 @@ def create_chart2(df, width=500, height=300):
     layered_chart = (
         alt.layer(bar_chart, text_labels)
         .configure_axisX(grid=True)
-        .properties(
-            width=width, height=height
-        )
+        .properties(width=width, height=height)
     )
     return layered_chart
 
