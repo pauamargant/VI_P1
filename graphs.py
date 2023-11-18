@@ -83,7 +83,7 @@ def get_chart_1(df, w=300, h=500):
                 "covid:N", header=alt.Header(labelFontSize=16), title=None
             ),  # Adjust the label font size here
         )
-        .properties(width=w)
+        .properties(width=w, height=h)
         # .configure_view(fill=colors["bg"])
     )
 
@@ -395,7 +395,7 @@ def create_chart3(df, color_palette, width=500, height=300):
     )
 
     before_after = (
-        alt.Chart()
+        alt.Chart(width=width, height=height)
         .mark_area(size=3, opacity=0.4, interpolate="basis")
         .encode(
             # x=alt.X('CRASH TIME INT', title=None, axis=alt.Axis(labelExpr="hours(timeFormat(datum.label, '%H:%M')) % 1 == 0 ? timeFormat(datum.label, '%H:%M') : ''")),
