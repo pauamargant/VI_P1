@@ -76,8 +76,10 @@ def get_accident_data(fname, sample=False):
     # Create a column indicating before or after COVID
     df["covid"] = df["date"].dt.year
     df["covid"] = df["covid"].replace([2018, 2020], ["before", "after"])
+    df['VEHICLE TYPE CODE 1'] = df['VEHICLE TYPE CODE 1'].str.title()
 
     return df
+
 
 
 def get_chart_1(df, w=300, h=500):
@@ -102,20 +104,20 @@ def get_chart_1(df, w=300, h=500):
         .transform_aggregate(accidents="count()", groupby=["weekday", "date", "covid"])
         .encode(
             x=alt.X(
-                "weekday:N", title=None, axis=alt.Axis(labelFontSize=14, labelAngle=0)
+                "covid:N", title=None,axis=alt.Axis(labelFontSize=16, labelAngle=0), sort=["before", "after"]
             ),
             y=alt.Y("average(accidents):Q", axis=alt.Axis(labelFontSize=14)),
             color=alt.Color(
-                "weekday:N",
+                "covid:N",
                 legend=None,
-                scale=alt.Scale(range=[colors["col1"], colors["col2"]]),
-            ),
+                scale=alt.Scale(range=[colors["col1"], colors["col2"]])         
+                ),
             column=alt.Column(
-                "covid:N", header=alt.Header(labelFontSize=16), title=None
+                "weekday:N", header=alt.Header(labelFontSize=16), title=None, 
+                sort=alt.SortField(field="weekday:N", order="ascending")  # Order by weekday in descending order
             ),
         )
-        .properties(width=w, height=h)
-        # .configure_view(fill=colors["bg"])
+        .properties(width=w, height=h).configure_axis(titleFontSize=16)
     )
 
 
@@ -308,7 +310,7 @@ def create_chart2(df, width=500, height=300):
                 sort=df["VEHICLE TYPE CODE 1"].tolist(),
             ),
             x=alt.X(
-                "percentage:Q", title="Percentage", scale=alt.Scale(domain=(0, 50))
+                "percentage:Q", title="Percentage of accidents", scale=alt.Scale(domain=(0, 50))
             ),
             color=alt.Color(
                 "VEHICLE TYPE CODE 1:N",
@@ -324,7 +326,6 @@ def create_chart2(df, width=500, height=300):
     )
 
     text_labels = bar_chart.mark_text(
-        fontWeight="bold",
         align="left",
         baseline="middle",
         fontSize=12,
@@ -344,7 +345,7 @@ def create_chart2(df, width=500, height=300):
         alt.layer(bar_chart, text_labels)
         .configure_axisX(grid=True)
         .properties(
-            width=width, height=height, title="Percentage of accidents by vehicle type"
+            width=width, height=height
         )
     )
     return layered_chart
