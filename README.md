@@ -15,7 +15,9 @@ In order to be able to run the notebook and, more importantly, the streamlit sit
 ```bash
 pip install -r requirements.txt
 ```
-Once the dependencies are installed, you can run the streamlit site by running the following command in the terminal:
+You can run the process notebook in a Google Colab environment or in a local jupyter notebook. In order to run it in a Google Colab environment, you will need to upload the dataset files and the `graphs.py` file to the environment. You will also need to install the dependencies in the environment. To do so you can upload the `requirements.txt` file to the environment and run the provided cell in the notebook.
+
+You can run the streamlit site by running the following command in the terminal:
 ```bash
 streamlit run streamlit_site.py
 ```

@@ -38,31 +38,55 @@ seq = [
 
 
 def get_accident_data(fname, sample=False):
+    """
+    Reads accident data from a CSV file and performs data preprocessing.
+
+    Parameters:
+    fname (str): The path to the CSV file.
+    sample (bool, optional): Whether to sample the data. Defaults to False.
+
+    Returns:
+    pandas.DataFrame: The preprocessed accident data.
+    """
     if not sample:
         df = pd.read_csv(fname)
     else:
         df = pd.read_csv(fname).sample(1000)
-    # DESCOMENTAR EL SAMPLE
-
-    # We parse the date column as a date
+    df = df[["CRASH DATE","CRASH TIME","BOROUGH", "LATITUDE", "LONGITUDE","VEHICLE TYPE CODE 1"]]
+    
+    # Parse the date column as a date
     df["date"] = pd.to_datetime(df["CRASH DATE"], format="%Y-%m-%d")
-    print(df.shape)
 
-    # create coolumn weekday/weekend
+    # Create a column for weekday/weekend
     df["weekday"] = df["date"].dt.dayofweek
-    # We create a column that says wether before or after covid
-    df["covid"] = df["date"].dt.year
-    # give name
-    df["covid"] = df["covid"].replace([2018, 2020], ["before", "after"])
     df["weekday"] = df["weekday"].replace(
         [0, 1, 2, 3, 4, 5, 6],
         ["weekday", "weekday", "weekday", "weekday", "weekday", "weekend", "weekend"],
     )
 
+    # Create a column indicating before or after COVID
+    df["covid"] = df["date"].dt.year
+    df["covid"] = df["covid"].replace([2018, 2020], ["before", "after"])
+
     return df
 
 
 def get_chart_1(df, w=300, h=500):
+    """
+    Generate a boxplot chart based on the provided dataframe.
+
+    Parameters:
+    - df: pandas.DataFrame
+        The dataframe containing the data for the chart.
+    - w: int, optional
+        The width of the chart in pixels. Default is 300.
+    - h: int, optional
+        The height of the chart in pixels. Default is 500.
+
+    Returns:
+    - alt.Chart
+        The generated boxplot chart.
+    """
     return (
         alt.Chart(df)
         .mark_boxplot(size=30)
@@ -71,9 +95,7 @@ def get_chart_1(df, w=300, h=500):
             x=alt.X(
                 "weekday:N", title=None, axis=alt.Axis(labelFontSize=14, labelAngle=0)
             ),
-            y=alt.Y(
-                "average(accidents):Q", axis=alt.Axis(labelFontSize=14)
-            ),  # Modify the label font size here
+            y=alt.Y("average(accidents):Q", axis=alt.Axis(labelFontSize=14)),
             color=alt.Color(
                 "weekday:N",
                 legend=None,
@@ -81,7 +103,7 @@ def get_chart_1(df, w=300, h=500):
             ),
             column=alt.Column(
                 "covid:N", header=alt.Header(labelFontSize=16), title=None
-            ),  # Adjust the label font size here
+            ),
         )
         .properties(width=w)
         # .configure_view(fill=colors["bg"])
@@ -89,6 +111,12 @@ def get_chart_1(df, w=300, h=500):
 
 
 def get_map():
+    """
+    Retrieves a hexagonal map of New York City.
+
+    Returns:
+        GeoDataFrame: A hexagonal map of New York City.
+    """
     path = geodatasets.get_path("nybb")
     ny = gpd.read_file(path).to_crs("EPSG:4326")
     resolution = 8
@@ -98,10 +126,19 @@ def get_map():
 
 
 def get_buroughs(hex_map):
+    """
+    Get the boroughs from a hex map.
+
+    Parameters:
+    - hex_map: The hex map to extract boroughs from.
+
+    Returns:
+    - ny_df: DataFrame containing centroid x, y, and borough name.
+    - hex_buroughs: Dissolved hex map by borough name.
+    """
     hex_buroughs = hex_map.dissolve(by="BoroName")
 
     ny_df = pd.DataFrame()
-    # get dataframe centroid x,y, burough name
     ny_df["x"] = hex_buroughs.centroid.x
     ny_df["y"] = hex_buroughs.centroid.y
     ny_df["BoroName"] = hex_buroughs.index
@@ -109,40 +146,70 @@ def get_buroughs(hex_map):
 
 
 def calculate_spatial_data(df, hex_map):
+    """
+    Calculate spatial data based on a dataframe and a hex map.
+
+    Args:
+        df (pandas.DataFrame): The input dataframe containing latitude and longitude information.
+        hex_map (geopandas.GeoDataFrame): The hex map used for spatial analysis.
+
+    Returns:
+        geopandas.GeoDataFrame: The hex map with additional spatial data.
+
+    """
     df_coord = df.dropna(subset=["LATITUDE", "LONGITUDE"])
     gdf = gpd.GeoDataFrame(
         df_coord, geometry=gpd.points_from_xy(df_coord.LONGITUDE, df_coord.LATITUDE)
     )[["geometry"]]
     gdf = gdf.set_crs(epsg=4326, inplace=True).to_crs("ESRI:102003")
-    # give id to each row in gdf from 1 to n
+
     gdf = gpd.sjoin(gdf, hex_map, how="right", op="intersects")
     print(gdf.columns)
     gdf_count = (
         gdf.groupby(["geometry", "h3_polyfill"]).size().reset_index(name="counts")
     )
-    # set index id
     gdf_count["counts"] = gdf_count.apply(lambda row: row["counts"], axis=1)
     df_geo = pd.DataFrame(gdf_count[["h3_polyfill", "counts"]])
 
     hex = hex_map.merge(
         df_geo, left_on="h3_polyfill", right_on="h3_polyfill", how="left"
     )
-    # to 0 counts sum 1
+
+    # to 0 counts we sum 1
     hex["counts"] = hex["counts"].apply(lambda x: 1 if x == 0 else x)
-    return hex
+    return hex[["h3_polyfill", "counts", "BoroName"]]
 
 
-def plot_map(hex, ny_df, hex_buroughs):
+def plot_map(hex_data, mapa, ny_df, hex_buroughs):
+    """
+    Plots a map with hexagons representing the number of accidents,
+    labels indicating the borough names, and borders for the boroughs.
+
+    Parameters:
+    - hex (alt.Chart): Altair chart object representing the hexagons.
+    - ny_df (alt.Chart): Altair chart object representing the New York data.
+    - hex_buroughs (alt.Chart): Altair chart object representing the hexagon boroughs.
+
+    Returns:
+    - alt.Chart: Altair chart object representing the map.
+    """
+    mapa = mapa.reset_index()
+
     hexagons = (
-        alt.Chart(hex)
+        alt.Chart(mapa)
         .mark_geoshape()
         .encode(
             color=alt.Color("counts:Q", title="Number of accidents"),
             tooltip=["h3_polyfill:N", "counts:Q"],
         )
+        .transform_lookup(
+            lookup="h3_polyfill",
+            from_=alt.LookupData(hex_data, "h3_polyfill", ["counts"]),
+        )
         .project(type="identity", reflectY=True)
         .properties(width=500, height=300)
     )
+
     labels = (
         alt.Chart(ny_df)
         .mark_text()
@@ -155,7 +222,7 @@ def plot_map(hex, ny_df, hex_buroughs):
         .properties(width=500, height=300)
     )
     burough_chart = (
-        alt.Chart(hex)
+        alt.Chart(hex_data)
         .mark_bar(orient="horizontal", height=20, color=colors["col1"])
         .encode(
             x=alt.X("count()").title("Number of accidents"),
@@ -169,14 +236,24 @@ def plot_map(hex, ny_df, hex_buroughs):
     )
 
 
-def save_chart(chart, name):
-    folder_path = "/temp"
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-    chart.save(f"temp/{name}.png", format="png")
-
-
 def q2_preprocessing(df):
+    """
+    Preprocesses the given DataFrame by performing the following steps:
+    1. Counts the occurrences of each vehicle type code.
+    2. Selects the top 10 most frequent vehicle type codes.
+    3. Replaces all other vehicle type codes with "Others".
+    4. Groups the data by vehicle type code and sums the counts.
+    5. Sorts the data by count in descending order.
+    6. Separates the data into two parts: one with the top 10 vehicle type codes and one with "Others".
+    7. Concatenates the two parts.
+    8. Calculates the percentage of each vehicle type code count.
+
+    Parameters:
+    - df (pandas.DataFrame): The input DataFrame containing the vehicle type codes.
+
+    Returns:
+    - sorted_df (pandas.DataFrame): The preprocessed DataFrame with vehicle type codes and their counts and percentages.
+    """
     count_df = df["VEHICLE TYPE CODE 1"].value_counts().reset_index()
     count_df.columns = ["VEHICLE TYPE CODE 1", "count"]
     top_10 = count_df.nlargest(9, "count")
@@ -201,6 +278,17 @@ def q2_preprocessing(df):
 
 
 def create_chart2(df, width=500, height=300):
+    """
+    Creates a layered bar chart showing the percentage of accidents by vehicle type.
+
+    Parameters:
+    - df: DataFrame - The input DataFrame containing the data for the chart.
+    - width: int - The width of the chart (default: 500).
+    - height: int - The height of the chart (default: 300).
+
+    Returns:
+    - layered_chart: LayeredChart - The layered bar chart visualizing the data.
+    """
     bar_chart = (
         alt.Chart(df)
         .mark_bar()
@@ -260,6 +348,16 @@ def get_weather_data(
         "new york city 2020-06-01 to 2020-08-31",
     ],
 ):
+    """
+    Retrieves weather data for a given DataFrame of accidents.
+
+    Args:
+        df (pandas.DataFrame): DataFrame containing accident data.
+        fnames (list, optional): List of file names for weather data CSV files. Defaults to ["new york city 2018-06-01 to 2018-08-31.csv", "new york city 2020-06-01 to 2020-08-31"].
+
+    Returns:
+        pandas.DataFrame: DataFrame containing merged accident and weather data.
+    """
     df_weather_1 = pd.read_csv("new york city 2018-06-01 to 2018-08-31.csv")
     df_weather_2 = pd.read_csv("new york city 2020-06-01 to 2020-08-31.csv")
     df_weather = pd.concat([df_weather_1, df_weather_2], axis=0)
@@ -269,17 +367,26 @@ def get_weather_data(
         weather_cond["datetime"], format="%Y-%m-%d"
     )
 
-    # Convert 'date' column in df to the same timezone as 'datetime' column in weather_cond
+    # We  Convert 'date' column in df to the same timezone as 'datetime' column in weather_cond
     df["date"] = pd.to_datetime(pd.to_datetime(df["CRASH DATE"]).dt.date)
 
-    # Merge weather conditions with accidents using pd.concat
+    # We Merge weather conditions with accidents using pd.concat
     data = df.merge(weather_cond, left_on="date", right_on="datetime", how="inner")
     return data
 
 
-def weather_chart(
-    data, w=500, h=300
-):  # calculate the mean of accidents per day and the mean for each conditions
+def weather_chart(data, w=500, h=300):
+    """
+    Generate a weather chart based on the given data.
+
+    Parameters:
+    - data: pandas DataFrame containing the necessary columns (date, conditions, CRASH TIME)
+    - w: width of the chart (default: 500)
+    - h: height of the chart (default: 300)
+
+    Returns:
+    - altair Chart object representing the weather chart
+    """
     per_day = (
         data[["date", "conditions", "CRASH TIME"]]
         .groupby(["date"])
@@ -302,7 +409,6 @@ def weather_chart(
         .reset_index()
     )
     mean_cond.columns = ["conditions", "mean_cond"]
-    # calcualte difference
 
     mean_cond["diff"] = mean_cond["mean_cond"].apply(lambda x: x - mean)
     bars = (
@@ -319,7 +425,6 @@ def weather_chart(
         )
         .properties(width=w, height=h)
     )
-    # get min and max diff and add/substrac 0.1
     min_diff = mean_cond["diff"].min() - 0.1
     max_diff = mean_cond["diff"].max() + 0.1
     domain = [min_diff, max_diff]
@@ -353,7 +458,15 @@ def weather_chart(
 
 
 def q3_preprocessing(df):
-    # Create a new column 'CRASH TIME INT' with crash times in 30-minute intervals
+    """
+    Preprocesses the given DataFrame by converting the 'CRASH TIME' column to an integer representation.
+
+    Args:
+        df (pandas.DataFrame): The DataFrame to be preprocessed.
+
+    Returns:
+        pandas.DataFrame: The preprocessed DataFrame.
+    """
     df["CRASH TIME INT"] = (
         pd.to_datetime(df["CRASH TIME"], format="%H:%M").dt.hour * 60
         + pd.to_datetime(df["CRASH TIME"], format="%H:%M").dt.minute
@@ -366,6 +479,18 @@ def q3_preprocessing(df):
 
 
 def create_chart3(df, color_palette, width=500, height=300):
+    """
+    Create a chart with morning and afternoon windows, and a before-after area plot.
+
+    Parameters:
+    - df: pandas DataFrame, the data to be plotted.
+    - color_palette: dict, a dictionary containing color values for the chart.
+    - width: int, optional, the width of the chart in pixels. Default is 500.
+    - height: int, optional, the height of the chart in pixels. Default is 300.
+
+    Returns:
+    - chart: altair Chart object, the created chart.
+    """
     morning_rh = {}
     morning_rh["x1"] = "08:00"
     morning_rh["x2"] = "09:00"
@@ -398,7 +523,6 @@ def create_chart3(df, color_palette, width=500, height=300):
         alt.Chart()
         .mark_area(size=3, opacity=0.4, interpolate="basis")
         .encode(
-            # x=alt.X('CRASH TIME INT', title=None, axis=alt.Axis(labelExpr="hours(timeFormat(datum.label, '%H:%M')) % 1 == 0 ? timeFormat(datum.label, '%H:%M') : ''")),
             x=alt.X("hours(HOUR):T"),
             y=alt.Y("count()").stack(None, title=None),
             color=alt.Color(
@@ -417,4 +541,10 @@ def create_chart3(df, color_palette, width=500, height=300):
 
 
 def get_palette():
+    """
+    Returns the palette of colors used for graphs.
+
+    Returns:
+        list: A list of colors.
+    """
     return colors
