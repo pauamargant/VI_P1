@@ -13,7 +13,10 @@ import geodatasets
 
 #!pip install h3pandas
 import h3pandas
+
 # import streamlit as st
+import base64
+import textwrap
 
 import numpy as np
 
@@ -59,20 +62,26 @@ def get_accident_data(fname, sample=False):
     return df
 
 
-def get_chart_1(df, w=300):
+def get_chart_1(df, w=300, h=500):
     return (
         alt.Chart(df)
-        .mark_boxplot(size=100)
+        .mark_boxplot(size=30)
         .transform_aggregate(accidents="count()", groupby=["weekday", "date", "covid"])
         .encode(
-            x=alt.X("weekday:N", title=None),
-            y="average(accidents):Q",
+            x=alt.X(
+                "weekday:N", title=None, axis=alt.Axis(labelFontSize=14, labelAngle=0)
+            ),
+            y=alt.Y(
+                "average(accidents):Q", axis=alt.Axis(labelFontSize=14)
+            ),  # Modify the label font size here
             color=alt.Color(
                 "weekday:N",
                 legend=None,
                 scale=alt.Scale(range=[colors["col1"], colors["col2"]]),
             ),
-            column="covid:N",
+            column=alt.Column(
+                "covid:N", header=alt.Header(labelFontSize=16), title=None
+            ),  # Adjust the label font size here
         )
         .properties(width=w)
         # .configure_view(fill=colors["bg"])
@@ -127,7 +136,10 @@ def plot_map(hex, ny_df, hex_buroughs):
     hexagons = (
         alt.Chart(hex)
         .mark_geoshape()
-        .encode(color="counts:Q", tooltip=["h3_polyfill:N", "counts:Q"])
+        .encode(
+            color=alt.Color("counts:Q", title="Number of accidents"),
+            tooltip=["h3_polyfill:N", "counts:Q"],
+        )
         .project(type="identity", reflectY=True)
         .properties(width=500, height=300)
     )
@@ -142,7 +154,19 @@ def plot_map(hex, ny_df, hex_buroughs):
         .project(type="identity", reflectY=True)
         .properties(width=500, height=300)
     )
-    return hexagons + labels + borders
+    burough_chart = (
+        alt.Chart(hex)
+        .mark_bar(orient="horizontal", height=20, color=colors["col1"])
+        .encode(
+            x=alt.X("count()").title("Number of accidents"),
+            y=alt.Y("BoroName:N", sort="-x", title=None),
+        )
+        .properties(width=200, height=300)
+    )
+
+    return alt.hconcat(hexagons + labels + borders, burough_chart).resolve_scale(
+        color="independent"
+    )
 
 
 def save_chart(chart, name):
@@ -176,7 +200,7 @@ def q2_preprocessing(df):
     return sorted_df
 
 
-def create_chart2(df):
+def create_chart2(df, width=500, height=300):
     bar_chart = (
         alt.Chart(df)
         .mark_bar()
@@ -206,6 +230,7 @@ def create_chart2(df):
         fontWeight="bold",
         align="left",
         baseline="middle",
+        fontSize=12,
         dx=3,  # Adjust the horizontal position of the labels
     ).encode(
         text=alt.Text(
@@ -218,7 +243,13 @@ def create_chart2(df):
         ),
     )
 
-    layered_chart = alt.layer(bar_chart, text_labels).configure_axisX(grid=True)
+    layered_chart = (
+        alt.layer(bar_chart, text_labels)
+        .configure_axisX(grid=True)
+        .properties(
+            width=width, height=height, title="Percentage of accidents by vehicle type"
+        )
+    )
     return layered_chart
 
 
@@ -247,7 +278,7 @@ def get_weather_data(
 
 
 def weather_chart(
-    data,
+    data, w=500, h=300
 ):  # calculate the mean of accidents per day and the mean for each conditions
     per_day = (
         data[["date", "conditions", "CRASH TIME"]]
@@ -286,14 +317,25 @@ def weather_chart(
                 alt.value(colors["col1"]),  # The negative color
             ),
         )
-        .properties(width=500, height=300)
+        .properties(width=w, height=h)
     )
+    # get min and max diff and add/substrac 0.1
+    min_diff = mean_cond["diff"].min() - 0.1
+    max_diff = mean_cond["diff"].max() + 0.1
+    domain = [min_diff, max_diff]
     points = (
         alt.Chart(mean_cond)
         .mark_point(orient="horizontal", size=100, opacity=1, fillOpacity=1)
         .encode(
-            y=alt.Y("conditions:N").sort("x"),
-            x="diff:Q",
+            y=alt.Y(
+                "conditions:N",
+                title="Conditions",
+                sort="x",
+                axis=alt.Axis(titleFontSize=14),
+            ),
+            x=alt.X("diff:Q", scale=alt.Scale(domain=domain)).title(
+                "Difference in percentage"
+            ),
             color=alt.condition(
                 alt.datum.diff > 0,
                 alt.value(colors["col2"]),  # The positive color
@@ -305,6 +347,74 @@ def weather_chart(
                 alt.value(colors["col1"]),  # The negative color
             ),
         )
-        .properties(width=500, height=300)
+        .properties(width=w, height=h)
     )
     return bars + points
+
+
+def q3_preprocessing(df):
+    # Create a new column 'CRASH TIME INT' with crash times in 30-minute intervals
+    df["CRASH TIME INT"] = (
+        pd.to_datetime(df["CRASH TIME"], format="%H:%M").dt.hour * 60
+        + pd.to_datetime(df["CRASH TIME"], format="%H:%M").dt.minute
+    )
+    df["CRASH TIME INT"] = (df["CRASH TIME INT"] // 30) * 30
+    df["CRASH TIME INT"] = df["CRASH TIME INT"].apply(
+        lambda x: f"{x // 60:02d}:{x % 60:02d}"
+    )
+    return df
+
+
+def create_chart3(df, color_palette, width=500, height=300):
+    morning_rh = {}
+    morning_rh["x1"] = "08:00"
+    morning_rh["x2"] = "09:00"
+    morning_rh = pd.DataFrame([morning_rh])
+
+    afternoon_rh = {}
+    afternoon_rh["x1"] = "15:00"
+    afternoon_rh["x2"] = "19:00"
+    afternoon_rh = pd.DataFrame([afternoon_rh])
+
+    morning_rh["x1"] = pd.to_datetime(morning_rh["x1"])
+    morning_rh["x2"] = pd.to_datetime(morning_rh["x2"])
+
+    afternoon_rh["x1"] = pd.to_datetime(afternoon_rh["x1"])
+    afternoon_rh["x2"] = pd.to_datetime(afternoon_rh["x2"])
+
+    morning_window = (
+        alt.Chart(morning_rh)
+        .mark_rect(opacity=0.1)
+        .encode(x="hours(x1):T", x2="hours(x2):T", color=alt.value("gray"))
+    )
+
+    afternoon_window = (
+        alt.Chart(afternoon_rh)
+        .mark_rect(opacity=0.1)
+        .encode(x="hours(x1):T", x2="hours(x2):T", color=alt.value("gray"))
+    )
+
+    before_after = (
+        alt.Chart()
+        .mark_area(size=3, opacity=0.4, interpolate="basis")
+        .encode(
+            # x=alt.X('CRASH TIME INT', title=None, axis=alt.Axis(labelExpr="hours(timeFormat(datum.label, '%H:%M')) % 1 == 0 ? timeFormat(datum.label, '%H:%M') : ''")),
+            x=alt.X("hours(HOUR):T"),
+            y=alt.Y("count()").stack(None, title=None),
+            color=alt.Color(
+                "covid:N", scale=alt.Scale(range=[colors["col1"], colors["col2"]])
+            ),
+        )
+    )
+    df["HOUR"] = pd.to_datetime(df["CRASH TIME"])
+
+    chart = (
+        alt.layer(before_after, morning_window, afternoon_window, data=df)
+        .facet(row=alt.Row("weekday", title=None, header=alt.Header(labelFontSize=16)))
+        .configure_axis(title=None)
+    )
+    return chart
+
+
+def get_palette():
+    return colors
