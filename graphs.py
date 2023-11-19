@@ -212,12 +212,12 @@ def plot_map(hex_data, mapa, ny_df, hex_buroughs):
     - alt.Chart: Altair chart object representing the map.
     """
     mapa = mapa.reset_index()
-
+    w = 300
     hexagons = (
         alt.Chart(mapa)
         .mark_geoshape()
         .encode(
-            color=alt.Color("counts:Q", title="Number of accidents"),
+            color=alt.Color("counts:Q", title="Number of accidents", scale=alt.Scale(scheme='greenblue')),
             tooltip=["h3_polyfill:N", "counts:Q"],
         )
         .transform_lookup(
@@ -225,19 +225,20 @@ def plot_map(hex_data, mapa, ny_df, hex_buroughs):
             from_=alt.LookupData(hex_data, "h3_polyfill", ["counts"]),
         )
         .project(type="identity", reflectY=True)
-        .properties(width=500, height=300)
+        .properties(width=w, height=300)
+       
     )
 
     labels = (
         alt.Chart(ny_df)
-        .mark_text()
+        .mark_text(fontWeight="bold")
         .encode(longitude="x:Q", latitude="y:Q", text="BoroName:N")
     )
     borders = (
         alt.Chart(hex_buroughs)
         .mark_geoshape(stroke="darkgray", strokeWidth=1.25, opacity=1, fillOpacity=0)
         .project(type="identity", reflectY=True)
-        .properties(width=500, height=300)
+        .properties(width=w, height=300)
     )
     burough_chart = (
         alt.Chart(hex_data)
@@ -248,10 +249,25 @@ def plot_map(hex_data, mapa, ny_df, hex_buroughs):
         )
         .properties(width=200, height=300)
     )
+    map_chart = alt.layer(hexagons, borders, labels)
+    return map_chart, burough_chart
+    #return hexagons + labels + borders, burough_chart
 
-    return hexagons + labels + borders, burough_chart
+def borough_chart(df, w=500, h=300):
+
+    mapa = get_map()
+    ny_df, bur = get_buroughs(mapa)
+    hex_data = calculate_spatial_data(df, mapa)
 
 
+    bar_chart = alt.Chart(hex_data).mark_bar(orient="horizontal", height=20, color=colors["col1"]).encode(
+        x=alt.X("count()").title("Number of accidents"),
+        y=alt.Y("BoroName:N", sort="-x", title=None),
+    ).properties(width=200, height=300)
+
+    return bar_chart
+
+ 
 def q2_preprocessing(df):
     """
     Preprocesses the given DataFrame by performing the following steps:
@@ -402,11 +418,14 @@ def weather_chart(data, w=500, h=300):
     Returns:
     - altair Chart object representing the weather chart
     """
+    
+    colors = {"bg": "#eff0f3", "col1": "#d8b365", "col2": "#5ab4ac"} 
+    
     per_day = (
         data[["date", "conditions", "CRASH TIME"]]
         .groupby(["date"])
         .count()
-        .reset_index()
+        .reset_index() 
     )
     mean = per_day["CRASH TIME"].mean()
 
