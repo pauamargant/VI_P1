@@ -39,8 +39,8 @@ chart_2 = create_chart2(q2_preprocessing(accident_data), width=1000, height=350)
 data_3 = q3_preprocessing(accident_data)
 chart_3 = create_chart3(data_3, color_palette=get_palette(), width=700, height=180)
 # open resources/map.svg
-with open("resources/testmap.svg", "r") as f:
-    map_svg = f.read()
+with open("resources/map2.svg", "r") as f:
+    map_svg = f.read() 
 
 # mapa = get_map()
 # ny_df, bur = get_buroughs(mapa)
